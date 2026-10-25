@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPG Odtwarzacz MP3</title>
+    <style>
+        body {
+            /* Czcionka w stylu fantasy/RPG */
+            font-family: 'Palatino Linotype', 'Book Antiqua', Palatino, serif;
+            background-color: #000;
+            
+            /* Początkowa tapeta tła */
+            background-image: url('wall.jpg');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            background-repeat: no-repeat;
+            
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden; 
+        }
+        
+        .bg-layer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            opacity: 0; 
+            transition: opacity 1.5s ease-in-out; 
+            z-index: -1; 
+        }
+        
+        #bg-base { background-image: url('base.jpg'); }
+        #bg-combat { background-image: url('combat.jpg'); }
+
+        .button-container {
+            display: flex;
+            gap: 40px; /* Zwiększony odstęp między guzikami */
+            z-index: 1; 
+        }
+        
+        /* Nowy, epicki styl RPG dla guzików */
+        button {
+            padding: 30px 70px; /* Znacznie większe przyciski */
+            font-size: 28px;
+            font-family: inherit;
+            font-weight: bold;
+            color: #d4af37; /* Złoty tekst */
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            
+            /* Tło imitujące ciemną skórę / mosiądz */
+            background: radial-gradient(circle, #3d2b1f, #1a110a);
+            border: 3px solid #8b7355;
+            border-radius: 12px;
+            cursor: pointer;
+            
+            /* Cienie nadające głębi i wypukłości */
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.9), inset 0 0 15px rgba(0, 0, 0, 0.8);
+            text-shadow: 2px 2px 5px rgba(0, 0, 0, 1);
+            transition: all 0.3s ease;
+        }
+        
+        button:hover {
+            /* Rozświetlenie po najechaniu kursorem */
+            background: radial-gradient(circle, #4d3b2f, #2a1a10);
+            border-color: #d4af37;
+            color: #fff;
+            box-shadow: 0 10px 35px rgba(212, 175, 55, 0.4), inset 0 0 20px rgba(0, 0, 0, 0.9);
+            transform: translateY(-4px); /* Lekkie uniesienie */
+        }
+        
+        button:active {
+            /* Wciśnięcie guzika */
+            transform: translateY(3px) scale(0.97);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.9), inset 0 0 25px rgba(0, 0, 0, 0.9);
+            border-color: #8b7355;
+            color: #d4af37;
+        }
+        
+        /* Ukrycie okna logów */
+        #console-log {
+            display: none; 
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Warstwy tła -->
+    <div id="bg-base" class="bg-layer"></div>
+    <div id="bg-combat" class="bg-layer"></div>
+
+    <div class="button-container">
+        <button id="btnBase">🌿 Ekploracja</button>
+        <button id="btnCombat">⚔️ Walka</button>
+    </div>
+
+    <!-- Ukryty element logów (zostawiłem go w HTML, by skrypt JS się nie wysypał) -->
+    <div id="console-log"></div>
+
+    <!-- Fizyczne tagi audio osadzone w stronie -->
+    <audio id="base0" src="base.mp3" preload="auto"></audio>
+    <audio id="base1" src="base.mp3" preload="auto"></audio>
+    <audio id="combat0" src="combat.mp3" preload="auto"></audio>
+    <audio id="combat1" src="combat.mp3" preload="auto"></audio>
+
+    <script>
+        const logBox = document.getElementById('console-log');
+        const bgBase = document.getElementById('bg-base');
+        const bgCombat = document.getElementById('bg-combat');
+        
+        function log(message) {
+            let lines = logBox.innerHTML.split('<br>');
+            lines.unshift(message);
+            if (lines.length > 6) lines.pop();
+            logBox.innerHTML = lines.join('<br>');
+        }
+
+        ['base0', 'base1', 'combat0', 'combat1'].forEach(id => {
+            document.getElementById(id).onerror = () => {
+                log(`BŁĄD: Nie znaleziono pliku dla ${id}!`);
+            };
+        });
+
+        let targetVolumes = { base0: 0, base1: 0, combat0: 0, combat1: 0 };
+        let currentMode = null; 
+        let activeIdx = { base: 0, combat: 0 };
+        let isUnlocked = false;
+
+        setInterval(() => {
+            ['base0', 'base1', 'combat0', 'combat1'].forEach(id => {
+                let audio = document.getElementById(id);
+                let target = targetVolumes[id];
+                
+                if (Math.abs(audio.volume - target) > 0.01) {
+                    if (audio.volume < target) audio.volume = Math.min(1, audio.volume + 0.05);
+                    if (audio.volume > target) audio.volume = Math.max(0, audio.volume - 0.05);
+                } else {
+                    audio.volume = target;
+                    if (target === 0 && !audio.paused) {
+                        audio.pause();
+                    }
+                }
+            });
+        }, 50);
+
+        setInterval(() => {
+            if (!currentMode) return;
+            
+            let id = currentMode + activeIdx[currentMode];
+            let audio = document.getElementById(id);
+
+            if (!audio.paused && audio.duration) {
+                let timeLeft = audio.duration - audio.currentTime;
+                
+                if (timeLeft <= 2.0 && timeLeft > 0) {
+                    activeIdx[currentMode] = 1 - activeIdx[currentMode]; 
+                    
+                    let nextId = currentMode + activeIdx[currentMode];
+                    let nextAudio = document.getElementById(nextId);
+                    
+                    nextAudio.currentTime = 0;
+                    nextAudio.play().catch(e => log(`Blokada pętli: ${e.message}`));
+                    
+                    targetVolumes[id] = 0;
+                    targetVolumes[nextId] = 1;
+                }
+            }
+        }, 100);
+
+        function unlockAudioElements() {
+            if (isUnlocked) return;
+            ['base0', 'base1', 'combat0', 'combat1'].forEach(id => {
+                let a = document.getElementById(id);
+                a.volume = 0;
+            });
+            isUnlocked = true;
+        }
+
+        document.getElementById('btnBase').addEventListener('click', () => {
+            unlockAudioElements();
+            currentMode = 'base';
+            
+            bgBase.style.opacity = '1';
+            bgCombat.style.opacity = '0';
+            
+            targetVolumes['combat0'] = 0;
+            targetVolumes['combat1'] = 0;
+            
+            let id = 'base' + activeIdx['base'];
+            let audio = document.getElementById(id);
+            if (audio.paused) {
+                audio.play().catch(e => log(`Zablokowano: ${e.message}`));
+            }
+            targetVolumes[id] = 1;
+        });
+
+        document.getElementById('btnCombat').addEventListener('click', () => {
+            unlockAudioElements();
+            currentMode = 'combat';
+            
+            bgCombat.style.opacity = '1';
+            bgBase.style.opacity = '0';
+            
+            targetVolumes['base0'] = 0;
+            targetVolumes['base1'] = 0;
+            
+            let id = 'combat' + activeIdx['combat'];
+            let audio = document.getElementById(id);
+            if (audio.paused) {
+                audio.play().catch(e => log(`Zablokowano: ${e.message}`));
+            }
+            targetVolumes[id] = 1;
+        });
+    </script>
+</body>
+</html>
